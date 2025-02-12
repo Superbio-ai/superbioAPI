@@ -2,7 +2,7 @@ name: Deploy new version to pypi
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
     paths:
       - 'setup.py'
 
@@ -12,18 +12,23 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/sbioapputils
+      url: https://pypi.org/project/superbio
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python 3.9
+      - name: Set up Python 3.12
         uses: actions/setup-python@v1
         with:
-          python-version: 3.9
+          python-version: 3.12
 
-      - name: Retrieve distributions
-        run: python setup.py sdist
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build distributions
+        run: python -m build
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
