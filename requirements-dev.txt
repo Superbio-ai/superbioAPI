@@ -1,0 +1,11 @@
+# Install all production dependencies and the package itself
+-e .
+
+# Development dependencies
+pytest~=6.2.4  # Specific version for compatibility with pytest-mutagen
+pytest-mock>=3.10.0
+pytest-cov>=4.1.0  # Added for coverage reporting
+requests-mock>=1.10.0
+coverage>=7.0.0
+mutmut>=2.4.3; sys_platform != 'win32'  # Added for mutation testing (non-Windows)
+pytest-mutagen>=1.3; sys_platform == 'win32'  # Alternative mutation testing for Windows 

@@ -169,3 +169,46 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Coverage and testing
+.coverage
+htmlcov/
+.mutmut-cache/
+coverage.xml
+.pytest_cache/
+
+# IDE specific files
+.vscode/
+*.code-workspace
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Environment and dependency management
+.python-version  # pyenv
+poetry.lock
+Pipfile.lock
+requirements.txt.sha256
+
+# Misc
+.DS_Store  # Mac specific
+*.bak
+*.swp
+*.swo
+*~
+
+# Local development
+local_settings.py
+dev.py
+config.local.py
+secrets.json
+
+# Virtual Environment
+.env
+.venv/
+venv/
+ENV/
+
+# Logs
+logs/
+*.log
