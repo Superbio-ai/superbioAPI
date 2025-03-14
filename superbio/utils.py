@@ -31,18 +31,17 @@ def job_post_validation(app_config, job_config, local_files_keys, remote_file_so
         job_files.extend(datahub_file_data_keys)
 
     app_config_running_modes = app_config["running_modes"]
-    print(f"app_config_running_modes {app_config_running_modes}")
     app_config_running_mode_ids = {mode["mode_id"] for mode in app_config_running_modes}
     if running_mode not in ["cpu", "gpu"]:
         raise Exception("Invalid running mode, choose 'gpu' or 'cpu' depending on what running modes the app supports")
     elif running_mode == "gpu" and 2 not in app_config_running_mode_ids:
-        raise Exception("")
+        raise Exception("This app does not support GPU running mode")
     elif running_mode == "cpu" and not app_config_running_mode_ids.intersection({1, 3, 4}):
-        raise Exception("")
+        raise Exception("This app does not support CPU running mode")
 
     required_params = []
     for param_config in app_config["parameter_settings"]["parameters"]:
-        if param_config.get("optional"):
+        if param_config.get("optional") or param_config.get("hidden"):
             continue
         required_params.append(param_config["field_name"])
 

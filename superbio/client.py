@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Literal
+from typing import Literal, Optional
 import requests
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
@@ -12,11 +12,6 @@ Superbio API Client
 
 This module provides a client for interacting with the Superbio API. It handles authentication,
 job submission, file management, and result retrieval.
-
-Example:
-    >>> from superbio import Client
-    >>> client = Client("your@email.com", "your_password")
-    >>> # [TODO: Add a simple example of submitting a job]
 """
 
 PROBLEM_WITH_JOB = "There was a problem finding your job, check the job_id is correct"
@@ -367,7 +362,7 @@ class Client:
         """
         return self._request("GET", f"api/users/{self.auth.user_id}/balances")
 
-    def get_app_list(self, hits_per_page=None, page=None, search_string=None):
+    def get_app_list(self, hits_per_page=None, page=None, search_string=None, mode: Optional[Literal['minimal', 'base', 'user_api']] = 'user_api'):
         """
         Get list of available applications.
 
@@ -385,38 +380,7 @@ class Client:
                         "name": "App Name",
                         "description": "App description",
                         "author": "Author name",
-                        "creation_time": "Jul 19 2023, 15:44:59",
-                        "dev_version": 1,
-                        "example_job_id": "64bf9448823bc93b64c10b95",
-                        "featured": true,
-                        "group": null,
-                        "group_tags": {
-                            "category": [{
-                                "description": "Category description",
-                                "group": "category",
-                                "id": "category_id",
-                                "name": "Category Name"
-                            }],
-                            "data_extension": [...],
-                            "focus": [...],
-                            "method": [...],
-                            "organization": [...],
-                            "subject": []
-                        },
-                        "has_liked": true,
-                        "is_paid_app": false,
-                        "last_update_time": null,
-                        "like_count": 31,
-                        "long_description": "...",
-                        "mean_job_execution_time": {
-                            "hardware": "gpu",
-                            "mean_job_execution_time_str": "~2m"
-                        },
-                        "model_actions": null,
-                        "run_count": 369,
-                        "save_model": false,
-                        "status": "released",
-                        "uid": 270
+                        "group_tags": [tag1, tag2, ...]
                     }, ...],
                     "hits_per_page": 100,
                     "total": 1234,
@@ -484,6 +448,11 @@ class Client:
         try:
             response = self._request("GET", f"api/apps/{app_id}")
             config = response["config"]
+
+            if config.get("parameter_settings") and config["parameter_settings"].get("parameters"):
+                config["parameter_settings"]["parameters"] = [parameter for parameter in config["parameter_settings"]["parameters"] \
+                                                                if not parameter.get("hidden")]
+
             config["running_modes"] = response["running_modes"]
             return config
         except Exception:
