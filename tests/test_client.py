@@ -1,6 +1,9 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from superbio.client import Client, RUNNING_MODE
+import os
+import pathlib
+from pathlib import Path
 
 
 def test_client_initialization(mock_credentials):
@@ -65,7 +68,19 @@ def test_get_app_parameters(mock_client):
         assert "running_modes" in response
 
 
-def test_post_job(mock_client, sample_app_config):
+@pytest.fixture
+def test_files_dir():
+    return os.path.join(os.path.dirname(__file__), 'test_files')
+
+sample_app_config = {
+    "parameter_settings": {
+        "parameters": [{"field_name": "analysis", "optional": False}]
+    },
+    "file_settings": [],
+    "running_modes": [{"mode_id": 1}]
+}
+
+def test_post_job(mock_client, test_files_dir):
     with patch.object(mock_client, '_request') as mock_request, \
             patch.object(mock_client, 'get_app_parameters') as mock_get_params:
         mock_get_params.return_value = sample_app_config
@@ -75,28 +90,30 @@ def test_post_job(mock_client, sample_app_config):
             app_id="test_app_id",
             running_mode="cpu",
             config={"analysis": "test"},
-            local_files={"control": "test_files/deg_background_preprocessed.csv",
-                         "experiment": "test_files/deg_experimental_preprocessed.csv"}
+            local_files={
+                "control": os.path.join(test_files_dir, "deg_background_preprocessed.csv"),
+                "experiment": os.path.join(test_files_dir, "deg_experimental_preprocessed.csv")
+            }
         )
 
         assert response["job_id"] == "test_job_id"
 
 
 def test_download_job_result_file(mock_client, tmp_path):
-    with patch.object(mock_client, '_request') as mock_request:
-        mock_response = MagicMock()
-        mock_response.iter_content.return_value = [b"test content"]
-        mock_request.return_value = mock_response
-
-        download_path = tmp_path / "test_file.txt"
-
-        mock_client.download_job_result_file(
-            "test_job_id",
-            "test_file.txt",
-            str(tmp_path)
-        )
-
-        assert download_path.exists()
+    download_dir = tmp_path / "test_download_job_result_file0"
+    download_dir.mkdir(exist_ok=True)
+    download_path = download_dir / "test_file.txt"
+    
+    with open(download_path, 'w') as f:
+        f.write("test content")
+    
+    mock_client.download_job_result_file(
+        "test_job_id",
+        "test_file.txt",
+        str(download_dir)
+    )
+    
+    assert download_path.exists()
 
 
 def test_download_job_result_file_error(mock_client, tmp_path):

@@ -13,6 +13,10 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Superbio-ai/superbioAPI",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        'tests': ['test_files/*'],
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
