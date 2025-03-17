@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="superbio",
-    version="0.1.1",
+    version="0.1.2",
     author="Superbio",
     author_email="dmason@superbio.ai",
     description="Python client for the Superbio API",
@@ -13,6 +13,10 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Superbio-ai/superbioAPI",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        'tests': ['test_files/*'],
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
