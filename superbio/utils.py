@@ -52,9 +52,6 @@ def job_post_validation(app_config, job_config, local_files_keys, remote_file_so
     missing_params = get_missing_values(required_params, job_config.keys())
     missing_files = get_missing_values(required_files, job_files)
 
-    print("required_params", required_params)
-    print("job_config.keys()", job_config.keys())
-
     if len(missing_params):
         raise Exception(f"Missing the following parameter values: {missing_params}")
 
