@@ -109,13 +109,13 @@ jobs = client.get_jobs(
 client.download_job_result_file(
     job_id="job_id",
     file_path="path/to/result.csv",  # Path of file in job results
-    output_dir="output_dir",         # Local directory to save file
+    path_to_download_to="output_dir",         # Local directory to save file
 )
 
 # Download all results
 client.download_all_job_results(
     job_id="job_id",
-    output_dir="output_dir",     # Local directory to save files
+    path_to_download_to="output_dir",     # Local directory to save files
 )
 
 # Delete a job
