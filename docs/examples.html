@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Examples &#8212; superbioAPI 0.1.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=828bb616" />
+    <script src="_static/documentation_options.js?v=360bc84d"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Reference" href="api_reference.html" />
+    <link rel="prev" title="Superbio Python Client" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h1>
+<section id="working-with-apps">
+<h2>Working with Apps<a class="headerlink" href="#working-with-apps" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get list of all apps</span>
+<span class="n">apps</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_app_list</span><span class="p">()</span>
+
+<span class="c1"># List apps with pagination and search</span>
+<span class="n">apps</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_app_list</span><span class="p">(</span>
+    <span class="n">hits_per_page</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>  <span class="c1"># (optional) Number of results per page</span>
+    <span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>            <span class="c1"># (optional) Page number</span>
+    <span class="n">search_string</span><span class="o">=</span><span class="s2">&quot;genomics&quot;</span>  <span class="c1"># (optional)Search by keyword</span>
+<span class="p">)</span>
+
+<span class="c1"># Get app details and parameters</span>
+<span class="n">app_config</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_app_parameters</span><span class="p">(</span><span class="s2">&quot;app_id&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="job-management">
+<h2>Job Management<a class="headerlink" href="#job-management" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># List jobs with filters</span>
+<span class="n">jobs</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_jobs</span><span class="p">(</span>
+    <span class="n">hits_per_page</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>           <span class="c1"># (optional) Number of jobs per page</span>
+    <span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>                      <span class="c1"># (optional) Page number</span>
+    <span class="n">status</span><span class="o">=</span><span class="s2">&quot;running&quot;</span><span class="p">,</span>            <span class="c1"># (optional) Filter by status: &quot;running&quot;, &quot;completed&quot;, &quot;failed&quot;, etc.</span>
+    <span class="n">date_from</span><span class="o">=</span><span class="s2">&quot;01/01/2024&quot;</span><span class="p">,</span>      <span class="c1"># (optional) Filter by start date (dd/mm/yyyy)</span>
+    <span class="n">date_to</span><span class="o">=</span><span class="s2">&quot;31/01/2024&quot;</span><span class="p">,</span>        <span class="c1"># Filter by end date (dd/mm/yyyy)</span>
+    <span class="n">search_string</span><span class="o">=</span><span class="s2">&quot;analysis&quot;</span>     <span class="c1"># Search job titles</span>
+<span class="p">)</span>
+
+<span class="c1"># Download specific result files</span>
+<span class="n">client</span><span class="o">.</span><span class="n">download_job_result_file</span><span class="p">(</span>
+    <span class="n">job_id</span><span class="o">=</span><span class="s2">&quot;job_id&quot;</span><span class="p">,</span>
+    <span class="n">file_path</span><span class="o">=</span><span class="s2">&quot;path/to/result.csv&quot;</span><span class="p">,</span>  <span class="c1"># Path of file in job results</span>
+    <span class="n">path_to_download_to</span><span class="o">=</span><span class="s2">&quot;output_dir&quot;</span><span class="p">,</span>         <span class="c1"># Local directory to save file</span>
+<span class="p">)</span>
+
+<span class="c1"># Download all results</span>
+<span class="n">client</span><span class="o">.</span><span class="n">download_all_job_results</span><span class="p">(</span>
+    <span class="n">job_id</span><span class="o">=</span><span class="s2">&quot;job_id&quot;</span><span class="p">,</span>
+    <span class="n">path_to_download_to</span><span class="o">=</span><span class="s2">&quot;output_dir&quot;</span><span class="p">,</span>     <span class="c1"># Local directory to save files</span>
+<span class="p">)</span>
+
+<span class="c1"># Delete a job</span>
+<span class="n">client</span><span class="o">.</span><span class="n">delete_job</span><span class="p">(</span><span class="s2">&quot;job_id&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="credit-management">
+<h2>Credit Management<a class="headerlink" href="#credit-management" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get credit balances and usage info</span>
+<span class="n">balances</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_balances</span><span class="p">()</span>
+<span class="c1"># Returns:</span>
+<span class="c1"># {</span>
+<span class="c1">#     &quot;balances&quot;: {</span>
+<span class="c1">#         &quot;available_credits&quot;: 6000,</span>
+<span class="c1">#         &quot;credits&quot;: 6000,</span>
+<span class="c1">#         &quot;runs_left&quot;: 400,</span>
+<span class="c1">#         &quot;total_runs&quot;: 400,</span>
+<span class="c1">#         &quot;runtime_left&quot;: 72000.0,</span>
+<span class="c1">#         &quot;total_runtime&quot;: 72000,</span>
+<span class="c1">#         &quot;runs_reset_time&quot;: &quot;Feb 28 2025, 23:08:05&quot;,</span>
+<span class="c1">#         &quot;runtime_reset_time&quot;: &quot;Feb 28 2025, 23:08:05&quot;,</span>
+<span class="c1">#         &quot;tier&quot;: &quot;free_organisation&quot;</span>
+<span class="c1">#     }</span>
+<span class="c1"># }</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">superbioAPI</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#working-with-apps">Working with Apps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#job-management">Job Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#credit-management">Credit Management</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="support.html">Support</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Superbio Python Client</a></li>
+      <li>Next: <a href="api_reference.html" title="next chapter">API Reference</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, David Mason.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/examples.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
