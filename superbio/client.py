@@ -301,7 +301,7 @@ class Client:
         """
         result_files = self.list_job_result_files(job_id)
         if download_compressed:
-            download_section = result_files.get("download")[0]
+            download_section = result_files.get("download", [None])[0]
             if download_section:
                 self.download_job_result_file(job_id, download_section['file'], path_to_download_to)
             else:
