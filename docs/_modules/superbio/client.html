@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>superbio.client &#8212; superbioAPI 0.1.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=828bb616" />
+    <script src="../../_static/documentation_options.js?v=360bc84d"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for superbio.client</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">requests_toolbelt</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultipartEncoder</span><span class="p">,</span> <span class="n">MultipartEncoderMonitor</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">superbio.auth</span><span class="w"> </span><span class="kn">import</span> <span class="n">AuthManager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">superbio.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">data_validation</span><span class="p">,</span> <span class="n">job_post_validation</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Superbio API Client</span>
+
+<span class="sd">This module provides a client for interacting with the Superbio API. It handles authentication,</span>
+<span class="sd">job submission, file management, and result retrieval.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">PROBLEM_WITH_JOB</span> <span class="o">=</span> <span class="s2">&quot;There was a problem finding your job, check the job_id is correct&quot;</span>
+<span class="n">RUNNING_MODE</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;cpu&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="create_callback">
+<a class="viewcode-back" href="../../source/superbio.html#superbio.client.create_callback">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_callback</span><span class="p">(</span><span class="n">encoder</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">callback</span><span class="p">(</span><span class="n">monitor</span><span class="p">):</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="p">(</span><span class="n">monitor</span><span class="o">.</span><span class="n">bytes_read</span> <span class="o">/</span> <span class="n">encoder</span><span class="o">.</span><span class="n">len</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Upload Progress: </span><span class="si">{</span><span class="n">progress</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">callback</span></div>
+
+
+
+<div class="viewcode-block" id="Client">
+<a class="viewcode-back" href="../../source/superbio.html#superbio.client.Client">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Client</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main client class for interacting with the Superbio API.</span>
+
+<span class="sd">    The client provides programmatic access to the Superbio platform, allowing users to:</span>
+<span class="sd">    - List and browse available apps</span>
+<span class="sd">    - Get app configurations and parameters</span>
+<span class="sd">    - Submit and manage computational jobs</span>
+<span class="sd">    - Track job status and retrieve results</span>
+<span class="sd">    - Monitor balances</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        You must first create an account at https://app.superbio.ai before using this client.</span>
+<span class="sd">        Your email and password from the platform will be used to authenticate API requests.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        auth (AuthManager): Handles authentication with the API</span>
+<span class="sd">        BASE_URL (str): The base URL for the API</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">BASE_URL</span> <span class="o">=</span> <span class="s2">&quot;https://api.superbio.ai&quot;</span>
+    <span class="c1"># BASE_URL = &quot;http://127.0.0.1:8000&quot;</span>
+
+    <span class="c1"># TODO:</span>
+    <span class="c1"># add files to datahub function and handle add to datahub in post job</span>
+    <span class="c1"># download results to remote storage function</span>
+    <span class="c1"># cache for app config</span>
+    <span class="c1"># helper function to return a job_config template</span>
+    <span class="c1"># get open data list</span>
+
+<div class="viewcode-block" id="Client.__init__">
+<a class="viewcode-back" href="../../source/superbio.html#superbio.client.Client.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the Superbio client.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            email (str): User&#39;s email address</span>
+<span class="sd">            password (str): User&#39;s password</span>
+<span class="sd">            token (str, optional): Existing authentication token</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="n">AuthManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">BASE_URL</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">token</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_json</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">return_json</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">BASE_URL</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="n">headers</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">headers</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;Authorization&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;Bearer </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">auth</span><span class="o">.</span><span class="n">token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">_json</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="n">files</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
+                                    <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+
+        <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">return_json</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span>
+
+<div class="viewcode-block" id="Client.post_job">
+<a class="viewcode-back" href="../../superbio.client.Client.post_job.html#superbio.client.Client.post_job">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">post_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">running_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">,</span> <span class="s2">&quot;cpu&quot;</span><span class="p">],</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">local_files</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">remote_file_source_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">datahub_file_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">validate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Submit a new job to the Superbio platform.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            app_id (str): ID of the application to run</span>
+<span class="sd">            running_mode (str): Either &quot;gpu&quot; or &quot;cpu&quot;</span>
+<span class="sd">            config (dict, optional): Job configuration parameters</span>
+<span class="sd">            local_files (dict, optional): Mapping of file keys to local file paths</span>
+<span class="sd">            remote_file_source_data (dict, optional): Remote file source configuration</span>
+<span class="sd">                Example for S3:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;file_key&quot;: [{</span>
+<span class="sd">                        &quot;protocol&quot;: &quot;s3&quot;,</span>
+<span class="sd">                        &quot;credentials&quot;: {</span>
+<span class="sd">                            &quot;aws_access_key_id&quot;: &quot;YOUR_ACCESS_KEY&quot;,</span>
+<span class="sd">                            &quot;aws_secret_access_key&quot;: &quot;YOUR_SECRET_KEY&quot;</span>
+<span class="sd">                        },</span>
+<span class="sd">                        &quot;path&quot;: &quot;bucket/path/to/file.csv&quot;</span>
+<span class="sd">                    }]</span>
+<span class="sd">                }</span>
+<span class="sd">            datahub_file_data (dict, optional): Mapping of file keys to lists of datahub file paths</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;file_key&quot;: [&quot;path/to/datahub/file.csv&quot;]</span>
+<span class="sd">                }</span>
+<span class="sd">            validate (bool, optional): Whether to validate inputs before submission</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Response from the API containing job details</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;job_id&quot;: &quot;job_123abc...&quot;</span>
+<span class="sd">                }</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If validation fails or job submission fails</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: credits validation</span>
+        <span class="c1"># TODO: handle open data</span>
+        <span class="c1"># TODO: make remote and datahub data easier</span>
+        <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">local_files</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">local_files</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">formatted_datahub_file_data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">datahub_file_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">file_key</span> <span class="ow">in</span> <span class="n">datahub_file_data</span><span class="p">:</span>
+                <span class="n">formatted_datahub_file_data</span><span class="p">[</span><span class="n">file_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">datahub_file_data</span><span class="p">[</span><span class="n">file_key</span><span class="p">]:</span>
+                    <span class="n">formatted_datahub_file_data</span><span class="p">[</span><span class="n">file_key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                        <span class="s2">&quot;protocol&quot;</span><span class="p">:</span> <span class="s2">&quot;s3&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="n">path</span>
+                    <span class="p">})</span>
+
+        <span class="k">if</span> <span class="n">validate</span><span class="p">:</span>
+            <span class="n">app_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_app_parameters</span><span class="p">(</span><span class="n">app_id</span><span class="p">)</span>
+            <span class="n">job_post_validation</span><span class="p">(</span><span class="n">app_config</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">local_files</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">local_files</span> <span class="k">else</span> <span class="p">[],</span> <span class="n">remote_file_source_data</span><span class="p">,</span> <span class="n">formatted_datahub_file_data</span><span class="p">,</span>
+                                <span class="n">running_mode</span><span class="p">)</span>
+
+        <span class="n">running_id</span> <span class="o">=</span> <span class="n">RUNNING_MODE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">running_mode</span><span class="p">)</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">remote_file_source_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">remote_file_source_data</span><span class="p">)</span>
+        <span class="n">formatted_datahub_file_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">formatted_datahub_file_data</span><span class="p">)</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;app_id&quot;</span><span class="p">:</span> <span class="n">app_id</span><span class="p">,</span>
+            <span class="s2">&quot;partial_job_submit&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="n">config</span><span class="p">,</span>
+            <span class="s2">&quot;running_mode&quot;</span><span class="p">:</span> <span class="n">running_id</span>
+        <span class="p">}</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;api/jobs&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">payload</span><span class="p">)</span>
+
+        <span class="n">partial_job_id</span> <span class="o">=</span> <span class="n">response</span><span class="p">[</span><span class="s2">&quot;job_id&quot;</span><span class="p">]</span>
+
+        <span class="c1"># TODO: add file duplicated handling after adding &#39;add to data hub&#39;</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;X-File-Name-To-File-Key-Map&quot;</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({}),</span>
+            <span class="s2">&quot;X-Add-To-Data-Hub-Paths&quot;</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({}),</span>
+            <span class="s2">&quot;Authorization&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;Bearer </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">auth</span><span class="o">.</span><span class="n">token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Content-Type&quot;</span><span class="p">:</span> <span class="s2">&quot;multipart/form-data&quot;</span><span class="p">,</span>  <span class="c1"># This will be replaced dynamically</span>
+        <span class="p">}</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;partial_job_id&quot;</span><span class="p">:</span> <span class="n">partial_job_id</span><span class="p">,</span>
+            <span class="s2">&quot;remote_file_source_data&quot;</span><span class="p">:</span> <span class="n">remote_file_source_data</span><span class="p">,</span>
+            <span class="s2">&quot;datahub_file_data&quot;</span><span class="p">:</span> <span class="n">formatted_datahub_file_data</span>
+        <span class="p">}</span>
+        <span class="n">open_files</span> <span class="o">=</span> <span class="p">{</span><span class="n">file_key</span><span class="p">:</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">file_path</span><span class="p">),</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">),</span> <span class="s2">&quot;application/octet-stream&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">file_key</span><span class="p">,</span> <span class="n">file_path</span> <span class="ow">in</span>
+                      <span class="n">local_files</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">fields</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">open_files</span><span class="p">)</span>
+        <span class="n">encoder</span> <span class="o">=</span> <span class="n">MultipartEncoder</span><span class="p">(</span><span class="n">fields</span><span class="p">)</span>
+
+        <span class="n">monitor</span> <span class="o">=</span> <span class="n">MultipartEncoderMonitor</span><span class="p">(</span><span class="n">encoder</span><span class="p">,</span> <span class="n">create_callback</span><span class="p">(</span><span class="n">encoder</span><span class="p">))</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">&quot;Content-Type&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">monitor</span><span class="o">.</span><span class="n">content_type</span>  <span class="c1"># Set correct content type</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;PATCH&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/jobs/</span><span class="si">{</span><span class="n">partial_job_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">monitor</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">file_obj</span> <span class="ow">in</span> <span class="n">open_files</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">file_obj</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">res</span></div>
+
+
+<div class="viewcode-block" id="Client.get_jobs">
+<a class="viewcode-back" href="../../superbio.client.Client.get_jobs.html#superbio.client.Client.get_jobs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">page</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">hits_per_page</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span> <span class="n">search_string</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">date_from</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">date_to</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">status</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;running&quot;</span><span class="p">,</span> <span class="s2">&quot;failed&quot;</span><span class="p">,</span> <span class="s2">&quot;completed&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">added_by_me</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve a list of jobs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            page (int): Page number for pagination</span>
+<span class="sd">            hits_per_page (int): Number of results per page</span>
+<span class="sd">            search_string (str, optional): Filter jobs by search term</span>
+<span class="sd">            date_from (str, optional): Start date in format dd/mm/yyyy</span>
+<span class="sd">            date_to (str, optional): End date in format dd/mm/yyyy</span>
+<span class="sd">            status (str, optional): Filter by job status</span>
+<span class="sd">            added_by_me (bool): Only show jobs created by current user</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: List of jobs and metadata</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;hits&quot;: [{</span>
+<span class="sd">                        &quot;id&quot;: &quot;job_123abc...&quot;,</span>
+<span class="sd">                        &quot;title&quot;: &quot;DGE-20221028-084933-cpu&quot;,</span>
+<span class="sd">                        &quot;status&quot;: &quot;Completed&quot;,</span>
+<span class="sd">                        &quot;app_name&quot;: &quot;Differential Gene Expression&quot;,</span>
+<span class="sd">                        &quot;created_at&quot;: &quot;2022-10-28T08:49:33&quot;,</span>
+<span class="sd">                        &quot;updated_at&quot;: &quot;2022-10-28T08:52:45&quot;,</span>
+<span class="sd">                        &quot;running_mode&quot;: &quot;cpu&quot;,</span>
+<span class="sd">                        &quot;config&quot;: {...}</span>
+<span class="sd">                        ...</span>
+<span class="sd">                    }],</span>
+<span class="sd">                    &quot;hits_per_page&quot;: 100,</span>
+<span class="sd">                    &quot;total&quot;: 1234,</span>
+<span class="sd">                    &quot;page&quot;: 1</span>
+<span class="sd">                }</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;running&quot;</span><span class="p">,</span> <span class="s2">&quot;failed&quot;</span><span class="p">,</span> <span class="s2">&quot;completed&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid status. Choose from: &quot;running&quot;, &quot;failed&quot;, &quot;completed&quot;&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">status</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">status</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span>
+
+        <span class="n">data_validation</span><span class="p">([</span><span class="n">date_to</span><span class="p">,</span> <span class="n">date_from</span><span class="p">])</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;self&quot;</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="s2">&quot;api/jobs&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_download_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">path_to_download_to</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path_to_download_to</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">iter_content</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">8192</span><span class="p">):</span>
+                <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Client.list_job_result_files">
+<a class="viewcode-back" href="../../superbio.client.Client.list_job_result_files.html#superbio.client.Client.list_job_result_files">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_job_result_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get list of result files for a completed job.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            job_id (str): ID of the job</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Structure containing file information</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;download&quot;: [{&quot;file&quot;: &quot;results.zip&quot;, &quot;title&quot;: &quot;Output results&quot;}],</span>
+<span class="sd">                    &quot;tables&quot;: [[{&quot;file&quot;: &quot;table.csv&quot;, &quot;title&quot;: &quot;Results table&quot;}, ...], ...],</span>
+<span class="sd">                    &quot;pdbs&quot;: [[{&quot;file&quot;: &quot;protein.pdb&quot;, &quot;title&quot;: &quot;Results protein&quot;}, ...], ...],</span>
+<span class="sd">                    &quot;images&quot;: [[{&quot;file&quot;: &quot;image.png&quot;, &quot;title&quot;: &quot;Results Images&quot;}, ...], ...],</span>
+<span class="sd">                }</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If job not found, not completed or other error occurs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/jobs/</span><span class="si">{</span><span class="n">job_id</span><span class="si">}</span><span class="s2">/result_files&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">PROBLEM_WITH_JOB</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.download_job_result_file">
+<a class="viewcode-back" href="../../superbio.client.Client.download_job_result_file.html#superbio.client.Client.download_job_result_file">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">download_job_result_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">result_file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path_to_download_to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                 <span class="n">result_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Download a specific result file from a job.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            job_id (str): ID of the job</span>
+<span class="sd">            result_file_path (str): Path to the file within job results</span>
+<span class="sd">            path_to_download_to (str): Local path to save file to</span>
+<span class="sd">            result_type (str, optional): This is for internal use only</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If download fails</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;api/jobs/</span><span class="si">{</span><span class="n">job_id</span><span class="si">}</span><span class="s2">/result_files&quot;</span>
+        <span class="n">download_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">path_to_download_to</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">result_file_path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">download_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">download_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">download_dir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">download_dir</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;result_type&quot;</span><span class="p">:</span> <span class="n">result_type</span><span class="p">,</span> <span class="s2">&quot;file_name&quot;</span><span class="p">:</span> <span class="n">result_file_path</span><span class="p">,</span> <span class="s2">&quot;download_file&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_json</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_download_file</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">download_path</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                <span class="s2">&quot;There was a problem downloading this result file, check the job_id and result_file_path are correct and you have write permissions for path_to_download_to&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.download_all_job_results">
+<a class="viewcode-back" href="../../superbio.client.Client.download_all_job_results.html#superbio.client.Client.download_all_job_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">download_all_job_results</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path_to_download_to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">download_compressed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Download all results for a job.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            job_id (str): ID of the job</span>
+<span class="sd">            path_to_download_to (str): Local path to save files to</span>
+<span class="sd">            download_compressed (bool): Whether to download as compressed archive</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If job not found or download fails</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_job_result_files</span><span class="p">(</span><span class="n">job_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">download_compressed</span><span class="p">:</span>
+            <span class="n">download_section</span> <span class="o">=</span> <span class="n">result_files</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;download&quot;</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">download_section</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">download_job_result_file</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="n">download_section</span><span class="p">[</span><span class="s1">&#39;file&#39;</span><span class="p">],</span> <span class="n">path_to_download_to</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Exception for job id not valid</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;No compressed version is available. Try with download_compressed = False or go to your jobs page on the Superbio.ai platform&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">result_files</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;download&quot;</span><span class="p">):</span>
+                <span class="k">del</span> <span class="n">result_files</span><span class="p">[</span><span class="s2">&quot;download&quot;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">result_file_key</span> <span class="ow">in</span> <span class="n">result_files</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">result_section</span> <span class="ow">in</span> <span class="n">result_files</span><span class="p">[</span><span class="n">result_file_key</span><span class="p">]:</span>
+                    <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">result_section</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">download_job_result_file</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;file&#39;</span><span class="p">],</span> <span class="n">path_to_download_to</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.delete_job">
+<a class="viewcode-back" href="../../superbio.client.Client.delete_job.html#superbio.client.Client.delete_job">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Delete a job.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            job_id (str): ID of the job to delete</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Response indicating success/failure</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;message&quot;: &quot;Deleted job&quot;</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If job not found or deletion fails</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;DELETE&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/jobs/</span><span class="si">{</span><span class="n">job_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">PROBLEM_WITH_JOB</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.get_balances">
+<a class="viewcode-back" href="../../superbio.client.Client.get_balances.html#superbio.client.Client.get_balances">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_balances</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get current credit balances.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Credit balance information</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;balances&quot;: {</span>
+<span class="sd">                        &quot;available_credits&quot;: 6000,</span>
+<span class="sd">                        &quot;credits&quot;: 6000,</span>
+<span class="sd">                        &quot;runs_left&quot;: 400,</span>
+<span class="sd">                        &quot;total_runs&quot;: 400,</span>
+<span class="sd">                        &quot;runtime_left&quot;: 72000.0,</span>
+<span class="sd">                        &quot;total_runtime&quot;: 72000,</span>
+<span class="sd">                        &quot;runs_reset_time&quot;: &quot;Feb 28 2025, 23:08:05&quot;,</span>
+<span class="sd">                        &quot;runtime_reset_time&quot;: &quot;Feb 28 2025, 23:08:05&quot;,</span>
+<span class="sd">                        &quot;tier&quot;: &quot;free_organisation&quot;,</span>
+<span class="sd">                        &quot;is_last_billing_cycle&quot;: False,</span>
+<span class="sd">                        &quot;comments_left&quot;: 0</span>
+<span class="sd">                    }</span>
+<span class="sd">                }</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/users/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">auth</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/balances&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.get_app_list">
+<a class="viewcode-back" href="../../superbio.client.Client.get_app_list.html#superbio.client.Client.get_app_list">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_app_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hits_per_page</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">page</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">search_string</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;minimal&#39;</span><span class="p">,</span> <span class="s1">&#39;base&#39;</span><span class="p">,</span> <span class="s1">&#39;user_api&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="s1">&#39;user_api&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get list of available applications.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            hits_per_page (int, optional): Number of results per page</span>
+<span class="sd">            page (int, optional): Page number to return</span>
+<span class="sd">            search_string (str, optional): Search by string</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: List of applications and metadata</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;hits&quot;: [{</span>
+<span class="sd">                        &quot;id&quot;: &quot;job_123abc...&quot;, </span>
+<span class="sd">                        &quot;name&quot;: &quot;App Name&quot;,</span>
+<span class="sd">                        &quot;description&quot;: &quot;App description&quot;,</span>
+<span class="sd">                        &quot;author&quot;: &quot;Author name&quot;,</span>
+<span class="sd">                        &quot;group_tags&quot;: [tag1, tag2, ...]</span>
+<span class="sd">                    }, ...],</span>
+<span class="sd">                    &quot;hits_per_page&quot;: 100,</span>
+<span class="sd">                    &quot;total&quot;: 1234,</span>
+<span class="sd">                    &quot;page&quot;: 1</span>
+<span class="sd">                }</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;self&quot;</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/appstore_list&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Client.get_app_parameters">
+<a class="viewcode-back" href="../../superbio.client.Client.get_app_parameters.html#superbio.client.Client.get_app_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_app_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get configuration parameters for an application.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            app_id (str): ID of the application</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Application configuration</span>
+<span class="sd">                Example:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;parameter_settings&quot;: {</span>
+<span class="sd">                        &quot;parameters&quot;: [{</span>
+<span class="sd">                            &quot;field_name&quot;: &quot;parameter_name&quot;,</span>
+<span class="sd">                            &quot;title&quot;: &quot;Parameter Title&quot;,</span>
+<span class="sd">                            &quot;tooltip&quot;: &quot;Parameter description&quot;,</span>
+<span class="sd">                            &quot;input_type&quot;: &quot;dropdown|slider|checkbox|user_input&quot;,</span>
+<span class="sd">                            &quot;type&quot;: &quot;str|integer|text&quot;,</span>
+<span class="sd">                            &quot;default_value&quot;: &quot;default&quot;,</span>
+<span class="sd">                            &quot;options&quot;: [{&quot;label&quot;: &quot;Option 1&quot;, &quot;value&quot;: &quot;opt1&quot;}, ...],</span>
+<span class="sd">                            &quot;min_value&quot;: 0,</span>
+<span class="sd">                            &quot;max_value&quot;: 100,</span>
+<span class="sd">                            &quot;increment&quot;: 1,</span>
+<span class="sd">                            &quot;hidden&quot;: false,</span>
+<span class="sd">                            &quot;disabled&quot;: false,</span>
+<span class="sd">                            &quot;optional&quot;: true</span>
+<span class="sd">                        }, ...],</span>
+<span class="sd">                        &quot;disabled_fields&quot;: [&quot;field1&quot;, &quot;field2&quot;],</span>
+<span class="sd">                        &quot;inputs_require_files&quot;: [&quot;field3&quot;]</span>
+<span class="sd">                    },</span>
+<span class="sd">                    &quot;file_settings&quot;: [{</span>
+<span class="sd">                        &quot;name&quot;: &quot;file_input_name&quot;,</span>
+<span class="sd">                        &quot;title&quot;: &quot;File Input Title&quot;, </span>
+<span class="sd">                        &quot;allowed_extensions&quot;: [&quot;h5ad&quot;],</span>
+<span class="sd">                        &quot;upload_types&quot;: [&quot;local&quot;, &quot;remote&quot;],</span>
+<span class="sd">                        &quot;supports_preview&quot;: true,</span>
+<span class="sd">                        &quot;disabled&quot;: false,</span>
+<span class="sd">                        &quot;data_structure_description&quot;: &quot;File format description&quot;,</span>
+<span class="sd">                        &quot;demo_data_details&quot;: {</span>
+<span class="sd">                            &quot;description&quot;: &quot;Demo data description&quot;,</span>
+<span class="sd">                            &quot;file_name&quot;: &quot;demo.h5ad&quot;,</span>
+<span class="sd">                            &quot;file_path&quot;: &quot;path/to/demo.h5ad&quot;,</span>
+<span class="sd">                            &quot;preview_file_name&quot;: &quot;preview.h5ad&quot;,</span>
+<span class="sd">                            &quot;file_sources&quot;: [{</span>
+<span class="sd">                                &quot;title&quot;: &quot;Source Title&quot;,</span>
+<span class="sd">                                &quot;url&quot;: &quot;https://source.url&quot;</span>
+<span class="sd">                            }]</span>
+<span class="sd">                        }</span>
+<span class="sd">                    }],</span>
+<span class="sd">                    &quot;running_modes&quot;: [&quot;cpu&quot;, &quot;gpu&quot;]</span>
+<span class="sd">                }</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: If app not found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request</span><span class="p">(</span><span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;api/apps/</span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="n">response</span><span class="p">[</span><span class="s2">&quot;config&quot;</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;parameter_settings&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;parameter_settings&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;parameters&quot;</span><span class="p">):</span>
+                <span class="n">config</span><span class="p">[</span><span class="s2">&quot;parameter_settings&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">parameter</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;parameter_settings&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">]</span> \
+                                                                <span class="k">if</span> <span class="ow">not</span> <span class="n">parameter</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;hidden&quot;</span><span class="p">)]</span>
+
+            <span class="n">config</span><span class="p">[</span><span class="s2">&quot;running_modes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">response</span><span class="p">[</span><span class="s2">&quot;running_modes&quot;</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">config</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;There was a problem finding this app, check app_id is correct&quot;</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">superbioAPI</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../support.html">Support</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, David Mason.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>superbio.client.Client.get_app_parameters &#8212; superbioAPI 0.1.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=828bb616" />
+    <script src="_static/documentation_options.js?v=360bc84d"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Support" href="support.html" />
+    <link rel="prev" title="superbio.client.Client.get_app_list" href="superbio.client.Client.get_app_list.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="superbio-client-client-get-app-parameters">
+<h1>superbio.client.Client.get_app_parameters<a class="headerlink" href="#superbio-client-client-get-app-parameters" title="Link to this heading">¶</a></h1>
+<dl class="py method">
+<dt class="sig sig-object py" id="superbio.client.Client.get_app_parameters">
+<span class="sig-prename descclassname"><span class="pre">Client.</span></span><span class="sig-name descname"><span class="pre">get_app_parameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/superbio/client.html#Client.get_app_parameters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#superbio.client.Client.get_app_parameters" title="Link to this definition">¶</a></dt>
+<dd><p>Get configuration parameters for an application.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>app_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a>) – ID of the application</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl>
+<dt>Application configuration</dt><dd><p>Example:
+{</p>
+<blockquote>
+<div><dl>
+<dt>”parameter_settings”: {</dt><dd><dl class="simple">
+<dt>“parameters”: [{</dt><dd><p>“field_name”: “parameter_name”,
+“title”: “Parameter Title”,
+“tooltip”: “Parameter description”,
+“input_type”: “dropdown|slider|checkbox|user_input”,
+“type”: “str|integer|text”,
+“default_value”: “default”,
+“options”: [{“label”: “Option 1”, “value”: “opt1”}, …],
+“min_value”: 0,
+“max_value”: 100,
+“increment”: 1,
+“hidden”: false,
+“disabled”: false,
+“optional”: true</p>
+</dd>
+</dl>
+<p>}, …],
+“disabled_fields”: [“field1”, “field2”],
+“inputs_require_files”: [“field3”]</p>
+</dd>
+</dl>
+<p>},
+“file_settings”: [{</p>
+<blockquote>
+<div><p>”name”: “file_input_name”,
+“title”: “File Input Title”,
+“allowed_extensions”: [“h5ad”],
+“upload_types”: [“local”, “remote”],
+“supports_preview”: true,
+“disabled”: false,
+“data_structure_description”: “File format description”,
+“demo_data_details”: {</p>
+<blockquote>
+<div><p>”description”: “Demo data description”,
+“file_name”: “demo.h5ad”,
+“file_path”: “path/to/demo.h5ad”,
+“preview_file_name”: “preview.h5ad”,
+“file_sources”: [{</p>
+<blockquote>
+<div><p>”title”: “Source Title”,
+“url”: “<a class="reference external" href="https://source.url">https://source.url</a>”</p>
+</div></blockquote>
+<p>}]</p>
+</div></blockquote>
+<p>}</p>
+</div></blockquote>
+<p>}],
+“running_modes”: [“cpu”, “gpu”]</p>
+</div></blockquote>
+<p>}</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)">dict</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.13)"><strong>Exception</strong></a> – If app not found</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">superbioAPI</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="api_reference.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="api_reference.html#client-module">Client Module</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="api_reference.html#class-reference">Class Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="support.html">Support</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="api_reference.html">API Reference</a><ul>
+      <li>Previous: <a href="superbio.client.Client.get_app_list.html" title="previous chapter">superbio.client.Client.get_app_list</a></li>
+      <li>Next: <a href="support.html" title="next chapter">Support</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, David Mason.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/superbio.client.Client.get_app_parameters.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
