@@ -11,6 +11,18 @@ class AuthManager:
         self.login()
 
     def login(self):
+        if self.user_id and self.token:
+            headers = {}
+            headers.update({"Authorization": f"Bearer {self.token}"})
+            response = requests.get(
+                f"{self.base_url}/api/users/{self.user_id}", headers=headers
+            )
+            if response.status_code == 200:
+                return
+            else:
+                raise PermissionError(
+                    "Invalid user_id or token. Please login again."
+                )
         try:
             response = requests.post(
                 f"{self.base_url}/login", json={"email": self.email, "password": self.password}
