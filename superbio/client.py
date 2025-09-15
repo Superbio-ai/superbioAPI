@@ -56,7 +56,7 @@ class Client:
     # helper function to return a job_config template
     # get open data list
 
-    def __init__(self, email: str, password: str, token: str = None):
+    def __init__(self, email: str = None, password: str = None, token: str = None, user_id: str = None):
         """
         Initialize the Superbio client.
 
@@ -64,8 +64,12 @@ class Client:
             email (str): User's email address
             password (str): User's password
             token (str, optional): Existing authentication token
+            user_id (str, optional): User id (required to be provided if token is provided)
         """
-        self.auth = AuthManager(self.BASE_URL, email, password, token)
+        if (email and password) or (token and user_id):
+            self.auth = AuthManager(self.BASE_URL, email, password, token, user_id)
+        else:
+            raise ValueError("Either email and password or token and user_id must be provided")
 
     def _request(self, method, endpoint, data=None, _json=None, params=None, files=None, headers=None, stream=False,
                  return_json=True):
@@ -230,6 +234,12 @@ class Client:
         data_validation([date_to, date_from])
         params = {k: v for k, v in locals().items() if k != "self" and v is not None}
         return self._request("GET", "api/jobs", params=params)
+
+    def get_job_status(self, job_id: str):
+        """
+        Get the status of a job.
+        """
+        return self._request("GET", f"/api/jobs/{job_id}")["status"]
 
     def _download_file(self, response, path_to_download_to):
         with open(path_to_download_to, "wb") as file:
