@@ -67,12 +67,9 @@ def test_auth_manager_other_http_error():
 
 def test_auth_manager_with_token(mock_credentials):
     """Test initialization with an existing token"""
-    with patch('requests.post') as mock_post:
-        # Setup mock response
-        mock_post.return_value.json.return_value = {
-            "access_token": mock_credentials['token'],
-            "id": mock_credentials['user_id']
-        }
+    with patch('requests.get') as mock_get, patch('requests.post') as mock_post:
+        # Setup mock response for token validation
+        mock_get.return_value.status_code = 200
         
         auth = AuthManager(
             "http://test.com",
@@ -82,8 +79,8 @@ def test_auth_manager_with_token(mock_credentials):
             user_id=mock_credentials['user_id']
         )
         
-        # Should still try to login to verify token
-        mock_post.assert_called_once()
+        mock_get.assert_called_once()
+        mock_post.assert_not_called()
         assert auth.token == mock_credentials['token']
 
 

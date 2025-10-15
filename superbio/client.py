@@ -2,10 +2,9 @@ import json
 import os
 from typing import Literal, Optional
 import requests
-from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
-
+from superbio.consts import RUNNING_MODE
 from superbio.auth import AuthManager
-from superbio.utils import data_validation, job_post_validation
+from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data
 
 """
 Superbio API Client
@@ -15,15 +14,6 @@ job submission, file management, and result retrieval.
 """
 
 PROBLEM_WITH_JOB = "There was a problem finding your job, check the job_id is correct"
-RUNNING_MODE = {"cpu": 1, "gpu": 2}
-
-
-def create_callback(encoder):
-    def callback(monitor):
-        progress = (monitor.bytes_read / encoder.len) * 100
-        print(f"Upload Progress: {progress:.2f}%")
-
-    return callback
 
 
 class Client:
@@ -134,15 +124,7 @@ class Client:
         if local_files is None:
             local_files = {}
 
-        formatted_datahub_file_data = {}
-        if datahub_file_data is not None:
-            for file_key in datahub_file_data:
-                formatted_datahub_file_data[file_key] = []
-                for path in datahub_file_data[file_key]:
-                    formatted_datahub_file_data[file_key].append({
-                        "protocol": "s3",
-                        "path": path
-                    })
+        formatted_datahub_file_data = format_datahub_file_data(datahub_file_data)
 
         if validate:
             app_config = self.get_app_parameters(app_id)
@@ -159,29 +141,12 @@ class Client:
             "config": config,
             "running_mode": running_id
         }
+            
         response = self._request("POST", "api/jobs", data=payload)
 
         partial_job_id = response["job_id"]
 
-        # TODO: add file duplicated handling after adding 'add to data hub'
-        headers = {
-            "X-File-Name-To-File-Key-Map": json.dumps({}),
-            "X-Add-To-Data-Hub-Paths": json.dumps({}),
-            "Authorization": f"Bearer {self.auth.token}",
-            "Content-Type": "multipart/form-data",  # This will be replaced dynamically
-        }
-        fields = {
-            "partial_job_id": partial_job_id,
-            "remote_file_source_data": remote_file_source_data,
-            "datahub_file_data": formatted_datahub_file_data
-        }
-        open_files = {file_key: (os.path.basename(file_path), open(file_path, "rb"), "application/octet-stream") for file_key, file_path in
-                      local_files.items()}
-        fields.update(open_files)
-        encoder = MultipartEncoder(fields)
-
-        monitor = MultipartEncoderMonitor(encoder, create_callback(encoder))
-        headers["Content-Type"] = monitor.content_type  # Set correct content type
+        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data)
 
         res = self._request("PATCH", f"api/jobs/{partial_job_id}", headers=headers, data=monitor, stream=True)
 
@@ -467,3 +432,73 @@ class Client:
             return config
         except Exception:
             raise Exception("There was a problem finding this app, check app_id is correct")
+
+    def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, local_files=None,
+                 remote_file_source_data=None, datahub_file_data=None):
+        """
+        Submit a new job to the Superbio platform using an external tool. This is to be used in the superbio.ai copilot mode.
+
+        Args:
+            external_tool_library_name (str): Name/ID of the external tool library. Currently we support...
+            tool_name (str): Name of the specific tool within the library
+            config (dict, optional): Job configuration parameters
+            local_files (dict, optional): Mapping of file keys to local file paths
+            remote_file_source_data (dict, optional): Remote file source configuration
+                Example for S3:
+                {
+                    "file_key": [{
+                        "protocol": "s3",
+                        "credentials": {
+                            "aws_access_key_id": "YOUR_ACCESS_KEY",
+                            "aws_secret_access_key": "YOUR_SECRET_KEY"
+                        },
+                        "path": "bucket/path/to/file.csv"
+                    }]
+                }
+            datahub_file_data (dict, optional): Mapping of file keys to lists of datahub file paths
+                Example:
+                {
+                    "file_key": ["path/to/datahub/file.csv"]
+                }
+
+        Returns:
+            dict: Response from the API containing job details
+                Example:
+                {
+                    "job_id": "job_123abc..."
+                }
+
+        Raises:
+            Exception: If job submission fails
+        """
+        if config is None:
+            config = {}
+
+        if local_files is None:
+            local_files = {}
+
+        formatted_datahub_file_data = format_datahub_file_data(datahub_file_data)
+        
+        config = json.dumps(config)
+        remote_file_source_data = json.dumps(remote_file_source_data)
+        formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
+        payload = {
+            "library_name_id": external_tool_library_name,
+            "tool_name": tool_name,
+            "partial_job_submit": True,
+            "config": config,
+
+        }
+
+        response = self._request("POST", "api/jobs/external_tool", data=payload)
+
+        partial_job_id = response["job_id"]
+
+        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data)
+
+        res = self._request("PATCH", f"api/jobs/{partial_job_id}", headers=headers, data=monitor, stream=True)
+
+        for file_obj in open_files.values():
+            file_obj[1].close()
+
+        return res
