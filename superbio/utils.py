@@ -1,5 +1,10 @@
 from datetime import datetime
+import json
+import os
 from typing import List
+from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
+
+from superbio.consts import RUNNING_MODE
 
 
 def data_validation(date_strs: List[str]):
@@ -57,3 +62,45 @@ def job_post_validation(app_config, job_config, local_files_keys, remote_file_so
 
     if len(missing_files):
         raise Exception(f"Missing the following files: {missing_files}")
+
+def format_datahub_file_data(datahub_file_data):
+    formatted_datahub_file_data = {}
+    if datahub_file_data is not None:
+        for file_key in datahub_file_data:
+            formatted_datahub_file_data[file_key] = []
+            for path in datahub_file_data[file_key]:
+                formatted_datahub_file_data[file_key].append({
+                    "protocol": "s3",
+                    "path": path
+                })
+
+    return formatted_datahub_file_data
+
+def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, remote_file_source_data, formatted_datahub_file_data):
+    # TODO: add file duplicated handling after adding 'add to data hub'
+    headers = {
+        "X-File-Name-To-File-Key-Map": json.dumps({}),
+        "X-Add-To-Data-Hub-Paths": json.dumps({}),
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "multipart/form-data",  # This will be replaced dynamically
+    }
+    fields = {
+        "partial_job_id": partial_job_id,
+        "remote_file_source_data": remote_file_source_data,
+        "datahub_file_data": formatted_datahub_file_data
+    }
+    open_files = {file_key: (os.path.basename(file_path), open(file_path, "rb"), "application/octet-stream") for file_key, file_path in
+                    local_files.items()}
+    fields.update(open_files)
+    encoder = MultipartEncoder(fields)
+
+    monitor = MultipartEncoderMonitor(encoder, create_callback(encoder))
+    headers["Content-Type"] = monitor.content_type  # Set correct content type
+    return headers, open_files, monitor
+
+def create_callback(encoder):
+    def callback(monitor):
+        progress = (monitor.bytes_read / encoder.len) * 100
+        print(f"Upload Progress: {progress:.2f}%")
+
+    return callback

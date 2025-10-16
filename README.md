@@ -3,11 +3,13 @@
 Official Python client for the [Superbio](https://app.superbio.ai) platform API. Access bioinformatics tools and AI models programmatically.
 
 ## Installation
+
 ```bash
 pip install superbio
 ```
 
 ## Quick Start
+
 ```python
 from superbio import Client
 
@@ -28,7 +30,9 @@ job = client.post_job(
     local_files={"file_key": "path/to/file"}
 )
 ```
+
 ## Submit a job with S3 files
+
 ```python
 job = client.post_job(
     app_id="app_id",
@@ -46,14 +50,19 @@ job = client.post_job(
     }
 )
 ```
+
 Check job status
+
 ```python
 status = client.get_job_status("job_id")
 ```
+
 Download results
+
 ```python
 client.download_job_results("job_id", "output_directory")
 ```
+
 ## Features
 
 - Browse and search available bioinformatics applications
@@ -94,6 +103,7 @@ app_config = client.get_app_parameters("app_id")
 ```
 
 ### Job Management
+
 ```python
 # List jobs with filters
 jobs = client.get_jobs(
@@ -123,6 +133,7 @@ client.delete_job("job_id")
 ```
 
 ### Credit Management
+
 ```python
 # Get credit balances and usage info
 balances = client.get_balances()
@@ -145,8 +156,8 @@ balances = client.get_balances()
 ## Support
 
 For support, contact dmason@superbio.ai.
-<!-- For support, contact dmason@superbio.ai or visit our [documentation](https://docs.superbio.ai). -->
 
+<!-- For support, contact dmason@superbio.ai or visit our [documentation](https://docs.superbio.ai). -->
 
 <!-- ## License
 

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'superbioAPI'
 copyright = '2025, David Mason'
 author = 'David Mason'
-release = '0.1.3'
+release = '0.1.5'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

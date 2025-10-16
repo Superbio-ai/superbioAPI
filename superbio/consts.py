@@ -1,0 +1,1 @@
+RUNNING_MODE = {"cpu": 1, "gpu": 2}

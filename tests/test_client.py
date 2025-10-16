@@ -22,7 +22,7 @@ def test_client_initialization(mock_credentials):
             Client.BASE_URL,
             mock_credentials['email'],
             mock_credentials['password'],
-            None
+            None, None
         )
         
         # Verify client has the mock auth instance
@@ -227,7 +227,7 @@ def test_list_job_result_files_error(mock_client):
 
 
 def test_create_callback(capsys):
-    from superbio.client import create_callback
+    from superbio.utils import create_callback
     from requests_toolbelt import MultipartEncoder
 
     encoder = MultipartEncoder(fields={"test": "data"})
