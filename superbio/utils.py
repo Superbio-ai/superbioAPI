@@ -22,7 +22,7 @@ def get_missing_values(required_items, items):
 
 
 def job_post_validation(app_config, job_config, local_files_keys, remote_file_source_data_keys, datahub_file_data_keys,
-                        running_mode):
+                        datahub_result_file_data_keys, running_mode):
     # TODO: add numeric input range validation
     # TODO: add file extension validation
     # TODO: remote file data format and datahub file validation format
@@ -34,6 +34,8 @@ def job_post_validation(app_config, job_config, local_files_keys, remote_file_so
         job_files.extend(remote_file_source_data_keys)
     if datahub_file_data_keys:
         job_files.extend(datahub_file_data_keys)
+    if datahub_result_file_data_keys:
+        job_files.extend(datahub_result_file_data_keys)
 
     app_config_running_modes = app_config["running_modes"]
     app_config_running_mode_ids = {mode["mode_id"] for mode in app_config_running_modes}
@@ -76,7 +78,7 @@ def format_datahub_file_data(datahub_file_data):
 
     return formatted_datahub_file_data
 
-def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, remote_file_source_data, formatted_datahub_file_data):
+def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data):
     # TODO: add file duplicated handling after adding 'add to data hub'
     headers = {
         "X-File-Name-To-File-Key-Map": json.dumps({}),
@@ -87,7 +89,8 @@ def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, re
     fields = {
         "partial_job_id": partial_job_id,
         "remote_file_source_data": remote_file_source_data,
-        "datahub_file_data": formatted_datahub_file_data
+        "datahub_file_data": formatted_datahub_file_data,
+        "datahub_result_file_data": formatted_datahub_result_file_data
     }
     open_files = {file_key: (os.path.basename(file_path), open(file_path, "rb"), "application/octet-stream") for file_key, file_path in
                     local_files.items()}

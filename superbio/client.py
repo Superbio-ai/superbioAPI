@@ -106,6 +106,11 @@ class Client:
                 {
                     "file_key": ["path/to/datahub/file.csv"]
                 }
+            datahub_result_file_data (dict, optional): Mapping of file keys to lists of datahub result file paths
+                Example:
+                {
+                    "file_key": ["path/to/datahub/result/file.csv"]
+                }
             validate (bool, optional): Whether to validate inputs before submission
 
         Returns:
@@ -128,16 +133,17 @@ class Client:
             local_files = {}
 
         formatted_datahub_file_data = format_datahub_file_data(datahub_file_data)
-
+        formatted_datahub_result_file_data = format_datahub_file_data(datahub_result_file_data)
         if validate:
             app_config = self.get_app_parameters(app_id)
             job_post_validation(app_config, config, local_files.keys() if local_files else [], remote_file_source_data, formatted_datahub_file_data,
-                                running_mode)
+                                formatted_datahub_result_file_data, running_mode)
 
         running_id = RUNNING_MODE.get(running_mode)
         config = json.dumps(config)
         remote_file_source_data = json.dumps(remote_file_source_data)
         formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
+        formatted_datahub_result_file_data = json.dumps(formatted_datahub_result_file_data)
         payload = {
             "app_id": app_id,
             "partial_job_submit": True,
@@ -150,7 +156,7 @@ class Client:
 
         partial_job_id = response["job_id"]
 
-        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data)
+        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data)
 
         res = self._request("PATCH", f"api/jobs/{partial_job_id}", headers=headers, data=monitor, stream=True)
 
@@ -438,7 +444,7 @@ class Client:
             raise Exception("There was a problem finding this app, check app_id is correct")
 
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, local_files=None,
-                 remote_file_source_data=None, datahub_file_data=None):
+                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None):
         """
         Submit a new job to the Superbio platform using an external tool. This is to be used in the superbio.ai copilot mode.
 
@@ -482,10 +488,11 @@ class Client:
             local_files = {}
 
         formatted_datahub_file_data = format_datahub_file_data(datahub_file_data)
-        
+        formatted_datahub_result_file_data = format_datahub_file_data(datahub_result_file_data)
         config = json.dumps(config)
         remote_file_source_data = json.dumps(remote_file_source_data)
         formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
+        formatted_datahub_result_file_data = json.dumps(formatted_datahub_result_file_data)
         payload = {
             "library_name_id": external_tool_library_name,
             "tool_name": tool_name,
@@ -498,7 +505,7 @@ class Client:
 
         partial_job_id = response["job_id"]
 
-        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data)
+        headers, open_files, monitor = create_patch_partial_job_payload(partial_job_id, self.auth.token, local_files, remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data)
 
         res = self._request("PATCH", f"api/jobs/{partial_job_id}", headers=headers, data=monitor, stream=True)
 
