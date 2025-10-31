@@ -46,7 +46,7 @@ class Client:
     # helper function to return a job_config template
     # get open data list
 
-    def __init__(self, email: str = None, password: str = None, token: str = None, user_id: str = None):
+    def __init__(self, email: str = None, password: str = None, token: str = None, user_id: str = None, job_group_id: str = None):
         """
         Initialize the Superbio client.
 
@@ -55,11 +55,14 @@ class Client:
             password (str): User's password
             token (str, optional): Existing authentication token
             user_id (str, optional): User id (required to be provided if token is provided)
+            job_group_id (str, optional): Used to group jobs together for sorting and filtering
         """
         if (email and password) or (token and user_id):
             self.auth = AuthManager(self.BASE_URL, email, password, token, user_id)
         else:
             raise ValueError("Either email and password or token and user_id must be provided")
+
+        self.job_group_id = job_group_id
 
     def _request(self, method, endpoint, data=None, _json=None, params=None, files=None, headers=None, stream=False,
                  return_json=True):
@@ -77,7 +80,7 @@ class Client:
             return response
 
     def post_job(self, app_id: str, running_mode: Literal["gpu", "cpu"], config=None, local_files=None,
-                 remote_file_source_data=None, datahub_file_data=None, validate=True):
+                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None, validate=True, _group_id: str = None):
         """
         Submit a new job to the Superbio platform.
 
@@ -139,7 +142,8 @@ class Client:
             "app_id": app_id,
             "partial_job_submit": True,
             "config": config,
-            "running_mode": running_id
+            "running_mode": running_id,
+            "group_id": _group_id or self.job_group_id
         }
             
         response = self._request("POST", "api/jobs", data=payload)
@@ -157,7 +161,7 @@ class Client:
 
     def get_jobs(self, page: int = 1, hits_per_page: int = 100, search_string: str = None, date_from: str = None,
                  date_to: str = None, status: Literal["running", "failed", "completed"] = None,
-                 added_by_me: bool = True):
+                 added_by_me: bool = True, group_id: str = None):
         """
         Retrieve a list of jobs.
 
@@ -169,7 +173,7 @@ class Client:
             date_to (str, optional): End date in format dd/mm/yyyy
             status (str, optional): Filter by job status
             added_by_me (bool): Only show jobs created by current user
-
+            group_id (str, optional): Filter jobs by group id
         Returns:
             dict: List of jobs and metadata
                 Example:
