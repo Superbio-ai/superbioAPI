@@ -37,8 +37,8 @@ class Client:
         BASE_URL (str): The base URL for the API
     """
 
-    # BASE_URL = "https://api.superbio.ai"
-    BASE_URL = "http://127.0.0.1:8000"
+    BASE_URL = "https://api.superbio.ai"
+    # BASE_URL = "http://127.0.0.1:8000"
 
     # TODO:
     # add files to datahub function and handle add to datahub in post job
