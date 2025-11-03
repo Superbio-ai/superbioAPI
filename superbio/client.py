@@ -1,10 +1,11 @@
 import json
 import os
+import uuid
 from typing import Literal, Optional
 import requests
 from superbio.consts import RUNNING_MODE
 from superbio.auth import AuthManager
-from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data
+from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data, create_datahub_upload_payload
 
 """
 Superbio API Client
@@ -496,6 +497,66 @@ class Client:
             return self._request("GET", "api/data_hub_results", params=params)
         else:
             return self._request("GET", "api/data_hub", params=params)
+
+    def upload_to_datahub(self, path: str, local_files: dict = None, remote_file_source_data: dict = None,
+                          is_organisation: bool = False, upload_id: str = None):
+        """
+        Upload files to the datahub.
+
+        Args:
+            path (str): Destination path in the datahub where files will be uploaded
+            local_files (dict, optional): Mapping of file keys to local file paths
+                Example:
+                {
+                    "file_key": "/path/to/local/file.csv"
+                }
+            remote_file_source_data (dict, optional): Remote file source configuration
+                Example for S3:
+                {
+                    "file_key": [{
+                        "protocol": "s3",
+                        "credentials": {
+                            "aws_access_key_id": "YOUR_ACCESS_KEY",
+                            "aws_secret_access_key": "YOUR_SECRET_KEY"
+                        },
+                        "path": "bucket/path/to/file.csv"
+                    }]
+                }
+            is_organisation (bool, optional): Whether to upload to organisation datahub
+            upload_id (str, optional): Upload ID for tracking. If not provided, a UUID is automatically generated.
+
+        Returns:
+            Response object from the API
+
+        Raises:
+            Exception: If upload fails
+        """
+        path.lstrip("/")
+        path.rstrip("/")
+        path += "/"
+
+        if local_files is None:
+            local_files = {}
+        
+        if not local_files and not remote_file_source_data:
+            raise ValueError("Either local_files or remote_file_source_data must be provided")
+        
+        if upload_id is None:
+            upload_id = str(uuid.uuid4())
+        
+        remote_file_source_data_json = json.dumps(remote_file_source_data) if remote_file_source_data else None
+        
+        headers, open_files, monitor = create_datahub_upload_payload(
+            path, is_organisation, upload_id, self.auth.token, local_files, remote_file_source_data_json
+        )
+        
+        try:
+            res = self._request("POST", "api/data_hub", headers=headers, data=monitor, stream=True, return_json=False)
+            return res
+        finally:
+            # Ensure all opened files are closed
+            for file_obj in open_files.values():
+                file_obj[1].close()
 
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, local_files=None,
                  remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None):
