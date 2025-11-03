@@ -36,8 +36,8 @@ class Client:
         BASE_URL (str): The base URL for the API
     """
 
-    BASE_URL = "https://api.superbio.ai"
-    # BASE_URL = "http://127.0.0.1:8000"
+    # BASE_URL = "https://api.superbio.ai"
+    BASE_URL = "http://127.0.0.1:8000"
 
     # TODO:
     # add files to datahub function and handle add to datahub in post job
@@ -442,6 +442,60 @@ class Client:
             return config
         except Exception:
             raise Exception("There was a problem finding this app, check app_id is correct")
+
+    def list_datahub(self, list_job_results: bool = False, path: str = "", search_string: str = '', is_organisation: bool = False,
+                     date_from: str = None, date_to: str = None, substrings: list = None,
+                     substring_and_or: Literal["AND", "OR"] = None, app_ids: list = None):
+        """
+        List files in the datahub.
+
+        Args:
+            path (str): Path to the datahub folder to list
+            search_string (str, optional): Search term to filter files
+            is_organisation (bool, optional): Whether to list organisation datahub
+            date_from (str, optional): Start date in format dd/mm/yyyy
+            date_to (str, optional): End date in format dd/mm/yyyy
+            substrings (list, optional): List of substrings to search for in file names
+            substring_and_or (str, optional): Logic operator for substring matching ("and" or "or")
+            app_ids (list, optional): List of app IDs to filter by
+
+        Returns:
+            dict: Datahub files and metadata
+                Example:
+                {
+                    "file_tree": [...],
+                    "folder_only_tree": [...],
+                    "uploading_files": [...]
+                }
+
+        Raises:
+            Exception: If request fails
+        """
+        data_validation([date_from, date_to])
+        
+        params = {
+            "path": path,
+            "search_string": search_string,
+            "is_organisation": is_organisation
+        }
+        
+        if date_from is not None:
+            params["date_from"] = date_from
+        if date_to is not None:
+            params["date_to"] = date_to
+        if substrings is not None:
+            params["substrings"] = substrings
+            if substring_and_or is None:
+                substring_and_or = "OR"
+        if substring_and_or is not None:
+            params["substring_and_or"] = substring_and_or.upper()
+        if app_ids is not None:
+            params["app_ids"] = app_ids
+
+        if list_job_results:
+            return self._request("GET", "api/data_hub_results", params=params)
+        else:
+            return self._request("GET", "api/data_hub", params=params)
 
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, local_files=None,
                  remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None):
