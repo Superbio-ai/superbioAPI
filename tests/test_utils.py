@@ -30,6 +30,7 @@ def test_job_post_validation_valid(sample_app_config):
         local_files,
         None,
         None,
+        None,
         "cpu"
     )
 
@@ -44,6 +45,7 @@ def test_job_post_validation_missing_required(sample_app_config):
             sample_app_config,
             job_config,
             local_files,
+            None,
             None,
             None,
             "cpu"
@@ -63,6 +65,7 @@ def test_job_post_validation_invalid_mode(sample_app_config):
             local_files,
             None,
             None,
+            None,
             "invalid_mode"
         )
 
@@ -78,6 +81,7 @@ def test_job_post_validation_missing_files(sample_app_config):
             sample_app_config,
             job_config,
             local_files,
+            None,
             None,
             None,
             "cpu"
@@ -100,6 +104,7 @@ def test_job_post_validation_unsupported_mode(sample_app_config):
             local_files,
             None,
             None,
+            None,
             "gpu"
         )
 
@@ -117,6 +122,7 @@ def test_job_post_validation_mixed_file_sources(sample_app_config):
         job_config,
         local_files,
         remote_files,
+        None,
         None,
         "cpu"
     )
