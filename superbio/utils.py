@@ -20,9 +20,9 @@ def data_validation(date_strs: List[str]):
 def get_missing_values(required_items, items):
     return [key for key in required_items if key not in items]
 
-
 def job_post_validation(app_config, job_config, 
-                        local_files_keys, remote_file_source_data_keys, datahub_file_data_keys, datahub_result_file_data_keys, open_file_data_keys, 
+                        local_files_keys, remote_file_source_data_keys, 
+                        datahub_file_data_keys, datahub_result_file_data_keys, open_file_data_keys, 
                         running_mode):
     # TODO: add numeric input range validation
     # TODO: add file extension validation
@@ -81,6 +81,19 @@ def format_datahub_file_data(datahub_file_data):
 
     return formatted_datahub_file_data
 
+
+def _create_multipart_encoder(fields, local_files):
+    open_files = {}
+    if local_files:
+        open_files = {file_key: (os.path.basename(file_path), open(file_path, "rb"), "application/octet-stream") 
+                      for file_key, file_path in local_files.items()}
+        fields.update(open_files)
+    
+    encoder = MultipartEncoder(fields)
+    monitor = MultipartEncoderMonitor(encoder, create_callback(encoder))
+    return open_files, monitor, monitor.content_type
+
+
 def format_open_file_data(open_file_data):
     formatted_open_file_data = {}
     if open_file_data is not None:
@@ -106,13 +119,29 @@ def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, re
         "datahub_result_file_data": formatted_datahub_result_file_data,
         "open_file_data": formatted_open_file_data
     }
-    open_files = {file_key: (os.path.basename(file_path), open(file_path, "rb"), "application/octet-stream") for file_key, file_path in
-                    local_files.items()}
-    fields.update(open_files)
-    encoder = MultipartEncoder(fields)
+    open_files, monitor, content_type = _create_multipart_encoder(fields, local_files)
+    headers["Content-Type"] = content_type
+    return headers, open_files, monitor
 
-    monitor = MultipartEncoderMonitor(encoder, create_callback(encoder))
-    headers["Content-Type"] = monitor.content_type  # Set correct content type
+def create_datahub_upload_payload(file_path, is_organisation, upload_id, auth_token, local_files, remote_file_source_data):
+    headers = {
+        "X-File-Path": file_path,
+        "X-Is-Organization": str(is_organisation).lower(),
+        "X-Upload-Id": upload_id,
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "multipart/form-data",  # This will be replaced dynamically
+    }
+    
+    fields = {
+        "path": file_path,
+        "is_organisation": str(is_organisation).lower(),
+    }
+    
+    if remote_file_source_data:
+        fields["remote_file_source_data"] = remote_file_source_data
+    
+    open_files, monitor, content_type = _create_multipart_encoder(fields, local_files)
+    headers["Content-Type"] = content_type
     return headers, open_files, monitor
 
 def create_callback(encoder):
