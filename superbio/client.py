@@ -1,10 +1,12 @@
 import json
 import os
+import uuid
 from typing import Literal, Optional
 import requests
 from superbio.consts import RUNNING_MODE
 from superbio.auth import AuthManager
-from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data, format_open_file_data
+from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data, create_datahub_upload_payload, format_open_file_data
+
 
 """
 Superbio API Client
@@ -46,7 +48,7 @@ class Client:
     # helper function to return a job_config template
     # get open data list
 
-    def __init__(self, email: str = None, password: str = None, token: str = None, user_id: str = None):
+    def __init__(self, email: str = None, password: str = None, token: str = None, user_id: str = None, job_group_id: str = None):
         """
         Initialize the Superbio client.
 
@@ -55,11 +57,14 @@ class Client:
             password (str): User's password
             token (str, optional): Existing authentication token
             user_id (str, optional): User id (required to be provided if token is provided)
+            job_group_id (str, optional): Used to group jobs together for sorting and filtering
         """
         if (email and password) or (token and user_id):
             self.auth = AuthManager(self.BASE_URL, email, password, token, user_id)
         else:
             raise ValueError("Either email and password or token and user_id must be provided")
+
+        self.job_group_id = job_group_id
 
     def _request(self, method, endpoint, data=None, _json=None, params=None, files=None, headers=None, stream=False,
                  return_json=True):
@@ -77,7 +82,7 @@ class Client:
             return response
 
     def post_job(self, app_id: str, running_mode: Literal["gpu", "cpu"], config=None, local_files=None,
-                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None, open_file_data=None, validate=True):
+                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None, open_file_data=None, validate=True, _group_id: str = None):
         """
         Submit a new job to the Superbio platform.
 
@@ -147,18 +152,19 @@ class Client:
             job_post_validation(app_config, config, local_files.keys() if local_files else [], 
                                 remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data, formatted_open_file_data,
                                 running_mode)
-
         running_id = RUNNING_MODE.get(running_mode)
         config = json.dumps(config)
         remote_file_source_data = json.dumps(remote_file_source_data)
         formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
         formatted_datahub_result_file_data = json.dumps(formatted_datahub_result_file_data)
         formatted_open_file_data = json.dumps(formatted_open_file_data)
+
         payload = {
             "app_id": app_id,
             "partial_job_submit": True,
             "config": config,
-            "running_mode": running_id
+            "running_mode": running_id,
+            "group_id": _group_id or self.job_group_id
         }
             
         response = self._request("POST", "api/jobs", data=payload)
@@ -178,7 +184,7 @@ class Client:
 
     def get_jobs(self, page: int = 1, hits_per_page: int = 100, search_string: str = None, date_from: str = None,
                  date_to: str = None, status: Literal["running", "failed", "completed"] = None,
-                 added_by_me: bool = True):
+                 added_by_me: bool = True, group_id: str = None):
         """
         Retrieve a list of jobs.
 
@@ -190,7 +196,7 @@ class Client:
             date_to (str, optional): End date in format dd/mm/yyyy
             status (str, optional): Filter by job status
             added_by_me (bool): Only show jobs created by current user
-
+            group_id (str, optional): Filter jobs by group id
         Returns:
             dict: List of jobs and metadata
                 Example:
@@ -454,9 +460,124 @@ class Client:
         except Exception:
             raise Exception("There was a problem finding this app, check app_id is correct")
 
+
+    def list_datahub(self, list_job_results: bool = False, path: str = "", search_string: str = '', is_organisation: bool = False,
+                     date_from: str = None, date_to: str = None, substrings: list = None,
+                     substring_and_or: Literal["AND", "OR"] = None, app_ids: list = None):
+        """
+        List files in the datahub.
+
+        Args:
+            path (str): Path to the datahub folder to list
+            search_string (str, optional): Search term to filter files
+            is_organisation (bool, optional): Whether to list organisation datahub
+            date_from (str, optional): Start date in format dd/mm/yyyy
+            date_to (str, optional): End date in format dd/mm/yyyy
+            substrings (list, optional): List of substrings to search for in file names
+            substring_and_or (str, optional): Logic operator for substring matching ("and" or "or")
+            app_ids (list, optional): List of app IDs to filter by
+
+        Returns:
+            dict: Datahub files and metadata
+                Example:
+                {
+                    "file_tree": [...],
+                    "folder_only_tree": [...],
+                    "uploading_files": [...]
+                }
+
+        Raises:
+            Exception: If request fails
+        """
+        data_validation([date_from, date_to])
+        
+        params = {
+            "path": path,
+            "search_string": search_string,
+            "is_organisation": is_organisation
+        }
+        
+        if date_from is not None:
+            params["date_from"] = date_from
+        if date_to is not None:
+            params["date_to"] = date_to
+        if substrings is not None:
+            params["substrings"] = substrings
+            if substring_and_or is None:
+                substring_and_or = "OR"
+        if substring_and_or is not None:
+            params["substring_and_or"] = substring_and_or.upper()
+        if app_ids is not None:
+            params["app_ids"] = app_ids
+
+        if list_job_results:
+            return self._request("GET", "api/data_hub_results", params=params)
+        else:
+            return self._request("GET", "api/data_hub", params=params)
+
+    def upload_to_datahub(self, path: str, local_files: dict = None, remote_file_source_data: dict = None,
+                          is_organisation: bool = False, upload_id: str = None):
+        """
+        Upload files to the datahub.
+
+        Args:
+            path (str): Destination path in the datahub where files will be uploaded
+            local_files (dict, optional): Mapping of file keys to local file paths
+                Example:
+                {
+                    "file_key": "/path/to/local/file.csv"
+                }
+            remote_file_source_data (dict, optional): Remote file source configuration
+                Example for S3:
+                {
+                    "file_key": [{
+                        "protocol": "s3",
+                        "credentials": {
+                            "aws_access_key_id": "YOUR_ACCESS_KEY",
+                            "aws_secret_access_key": "YOUR_SECRET_KEY"
+                        },
+                        "path": "bucket/path/to/file.csv"
+                    }]
+                }
+            is_organisation (bool, optional): Whether to upload to organisation datahub
+            upload_id (str, optional): Upload ID for tracking. If not provided, a UUID is automatically generated.
+
+        Returns:
+            Response object from the API
+
+        Raises:
+            Exception: If upload fails
+        """
+        path.lstrip("/")
+        path.rstrip("/")
+        path += "/"
+
+        if local_files is None:
+            local_files = {}
+        
+        if not local_files and not remote_file_source_data:
+            raise ValueError("Either local_files or remote_file_source_data must be provided")
+        
+        if upload_id is None:
+            upload_id = str(uuid.uuid4())
+        
+        remote_file_source_data_json = json.dumps(remote_file_source_data) if remote_file_source_data else None
+        
+        headers, open_files, monitor = create_datahub_upload_payload(
+            path, is_organisation, upload_id, self.auth.token, local_files, remote_file_source_data_json
+        )
+        
+        try:
+            res = self._request("POST", "api/data_hub", headers=headers, data=monitor, stream=True, return_json=False)
+            return res
+        finally:
+            # Ensure all opened files are closed
+            for file_obj in open_files.values():
+                file_obj[1].close()
+
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, 
-                                local_files=None, remote_file_source_data=None, 
-                                datahub_file_data=None, datahub_result_file_data=None, open_file_data=None):
+                               local_files=None, remote_file_source_data=None, 
+                               datahub_file_data=None, datahub_result_file_data=None, open_file_data=None):
         """
         Submit a new job to the Superbio platform using an external tool. This is to be used in the superbio.ai copilot mode.
 
@@ -514,8 +635,9 @@ class Client:
         config = json.dumps(config)
         remote_file_source_data = json.dumps(remote_file_source_data)
         formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
-        formatted_open_file_data = json.dumps(formatted_open_file_data)
         formatted_datahub_result_file_data = json.dumps(formatted_datahub_result_file_data)
+        formatted_open_file_data = json.dumps(formatted_open_file_data)
+
         payload = {
             "library_name_id": external_tool_library_name,
             "tool_name": tool_name,
