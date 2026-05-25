@@ -82,7 +82,8 @@ class Client:
             return response
 
     def post_job(self, app_id: str, running_mode: Literal["gpu", "cpu"], config=None, local_files=None,
-                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None, open_file_data=None, validate=True, _group_id: str = None):
+                 remote_file_source_data=None, datahub_file_data=None, datahub_result_file_data=None, open_file_data=None, validate=True,
+                 title: str = None, group_id: str = None):
         """
         Submit a new job to the Superbio platform.
 
@@ -124,6 +125,8 @@ class Client:
                     }]
                 }
             validate (bool, optional): Whether to validate inputs before submission
+            title (str, optional): Human-readable title for the job
+            group_id (str, optional): Group ID for job grouping/filtering. Falls back to self.job_group_id if not provided.
 
         Returns:
             dict: Response from the API containing job details
@@ -164,8 +167,10 @@ class Client:
             "partial_job_submit": True,
             "config": config,
             "running_mode": running_id,
-            "group_id": _group_id or self.job_group_id
+            "group_id": group_id or self.job_group_id
         }
+        if title:
+            payload["title"] = title
             
         response = self._request("POST", "api/jobs", data=payload)
 
@@ -577,7 +582,8 @@ class Client:
 
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, 
                                local_files=None, remote_file_source_data=None, 
-                               datahub_file_data=None, datahub_result_file_data=None, open_file_data=None):
+                               datahub_file_data=None, datahub_result_file_data=None, open_file_data=None,
+                               title: str = None, group_id: str = None):
         """
         Submit a new job to the Superbio platform using an external tool. This is to be used in the superbio.ai copilot mode.
 
@@ -613,6 +619,9 @@ class Client:
                         "extension":"h5ad"
                     }]
                 }
+            title (str, optional): Human-readable title for the job
+            group_id (str, optional): Group ID for job grouping/filtering. Falls back to self.job_group_id if not provided.
+
         Returns:
             dict: Response from the API containing job details
                 Example:
@@ -643,8 +652,10 @@ class Client:
             "tool_name": tool_name,
             "partial_job_submit": True,
             "config": config,
-
+            "group_id": group_id or self.job_group_id,
         }
+        if title:
+            payload["title"] = title
 
         response = self._request("POST", "api/jobs/external_tool", data=payload)
 
