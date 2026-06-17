@@ -68,16 +68,39 @@ def job_post_validation(app_config, job_config,
     if len(missing_files):
         raise Exception(f"Missing the following files: {missing_files}")
 
+def format_userdata_file_data(userdata_file_data):
+    formatted = {}
+    if userdata_file_data is not None:
+        for file_key in userdata_file_data:
+            formatted[file_key] = []
+            for file_entry in userdata_file_data[file_key]:
+                formatted[file_key].append({
+                    "protocol": "s3",
+                    "path": file_entry["path"],
+                    "shared_user_id": file_entry.get("shared_user_id"),
+                })
+    return formatted
+
+
 def format_datahub_file_data(datahub_file_data):
     formatted_datahub_file_data = {}
     if datahub_file_data is not None:
         for file_key in datahub_file_data:
             formatted_datahub_file_data[file_key] = []
-            for path in datahub_file_data[file_key]:
-                formatted_datahub_file_data[file_key].append({
-                    "protocol": "s3",
-                    "path": path
-                })
+            for entry in datahub_file_data[file_key]:
+                if isinstance(entry, str):
+                    formatted_datahub_file_data[file_key].append({
+                        "protocol": "s3",
+                        "path": entry
+                    })
+                else:
+                    item = {
+                        "protocol": "s3",
+                        "path": entry["path"],
+                    }
+                    if entry.get("is_organisation"):
+                        item["is_organisation"] = True
+                    formatted_datahub_file_data[file_key].append(item)
 
     return formatted_datahub_file_data
 
@@ -104,7 +127,7 @@ def format_open_file_data(open_file_data):
                 formatted_open_file_data[file_key].append(file)
     return formatted_open_file_data
 
-def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data, formatted_open_file_data):
+def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, remote_file_source_data, formatted_datahub_file_data, formatted_datahub_result_file_data, formatted_open_file_data, formatted_userdata_file_data=None):
     # TODO: add file duplicated handling after adding 'add to data hub'
     headers = {
         "X-File-Name-To-File-Key-Map": json.dumps({}),
@@ -117,7 +140,8 @@ def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, re
         "remote_file_source_data": remote_file_source_data,
         "datahub_file_data": formatted_datahub_file_data,
         "datahub_result_file_data": formatted_datahub_result_file_data,
-        "open_file_data": formatted_open_file_data
+        "open_file_data": formatted_open_file_data,
+        "userdata_file_data": formatted_userdata_file_data or "{}",
     }
     open_files, monitor, content_type = _create_multipart_encoder(fields, local_files)
     headers["Content-Type"] = content_type
