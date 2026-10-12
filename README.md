@@ -132,6 +132,39 @@ client.download_all_job_results(
 client.delete_job("job_id")
 ```
 
+### Uploading Large Files to the Data Hub
+
+The browser accepts up to 10 GB at a time. For larger data, upload from your computer with the
+command line tool or the Python client. Files are sent directly to storage in parallel parts; if
+the upload is interrupted, run the same command again within 24 hours and it continues from where
+it stopped.
+
+```bash
+export SUPERBIO_EMAIL="your@email.com"
+export SUPERBIO_PASSWORD="your_password"
+
+# Upload a file to the Data Hub root
+superbio upload sample.bam
+
+# Upload a folder (recursively) into the "projects" folder
+superbio upload ./run_42 projects
+
+# Upload to your organisation's shared Data Hub
+superbio upload sample.bam --org
+```
+
+```python
+client.upload_to_datahub(
+    path="projects",                          # Destination folder ("" for the root)
+    local_files={"reads": "run_42/"},         # Files or folders to upload
+    is_organisation=False,                    # (optional) Organisation Data Hub
+    concurrency=8,                            # (optional) Parallel parts per file
+)
+```
+
+Uploads count toward your Data Hub storage quota. If your data is already in Amazon S3, connect
+the bucket in the Data Hub instead; its files are available without copying.
+
 ### Credit Management
 
 ```python

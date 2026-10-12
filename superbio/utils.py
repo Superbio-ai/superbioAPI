@@ -147,27 +147,6 @@ def create_patch_partial_job_payload(partial_job_id, auth_token, local_files, re
     headers["Content-Type"] = content_type
     return headers, open_files, monitor
 
-def create_datahub_upload_payload(file_path, is_organisation, upload_id, auth_token, local_files, remote_file_source_data):
-    headers = {
-        "X-File-Path": file_path,
-        "X-Is-Organization": str(is_organisation).lower(),
-        "X-Upload-Id": upload_id,
-        "Authorization": f"Bearer {auth_token}",
-        "Content-Type": "multipart/form-data",  # This will be replaced dynamically
-    }
-    
-    fields = {
-        "path": file_path,
-        "is_organisation": str(is_organisation).lower(),
-    }
-    
-    if remote_file_source_data:
-        fields["remote_file_source_data"] = remote_file_source_data
-    
-    open_files, monitor, content_type = _create_multipart_encoder(fields, local_files)
-    headers["Content-Type"] = content_type
-    return headers, open_files, monitor
-
 def create_callback(encoder):
     def callback(monitor):
         progress = (monitor.bytes_read / encoder.len) * 100
