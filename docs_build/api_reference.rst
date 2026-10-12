@@ -33,4 +33,5 @@ Class Reference
       ~Client.delete_job
       ~Client.get_balances
       ~Client.get_app_list
-      ~Client.get_app_parameters 
+      ~Client.get_app_parameters
+      ~Client.upload_to_datahub

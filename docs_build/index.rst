@@ -66,6 +66,7 @@ You must first create an account at `app.superbio.ai <https://app.superbio.ai>`_
    features
    authentication
    examples
+   uploading
    api_reference
    support
 

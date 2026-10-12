@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="superbio",
-    version="0.1.9",
+    version="0.2.0",
     author="Superbio",
     author_email="dmason@superbio.ai",
     description="Python client for the Superbio API",
@@ -29,6 +29,9 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     python_requires=">=3.7",
+    entry_points={
+        "console_scripts": ["superbio=superbio.cli:main"],
+    },
     install_requires=[
         "requests>=2.25.0",
         "requests-toolbelt>=0.9.1"
