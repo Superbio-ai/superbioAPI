@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'setup.py'
+  workflow_dispatch:
 
 jobs:
   pypi-publish:
