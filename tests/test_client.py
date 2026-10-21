@@ -1,3 +1,4 @@
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 from superbio.client import Client, RUNNING_MODE
@@ -97,6 +98,56 @@ def test_post_job(mock_client, test_files_dir):
         )
 
         assert response["job_id"] == "test_job_id"
+
+
+def test_post_external_tool_job_with_input_paths_posts_once(mock_client):
+    input_paths = {"reads": ["/workspace/a.fq"], "reference": "/mnt/datahub/ref.fa"}
+    with patch.object(mock_client, '_request') as mock_request:
+        mock_request.return_value = {"job_id": "job-1"}
+
+        response = mock_client.post_external_tool_job(
+            "nvidia-parabricks", "fq2bam", config={"threads": 8}, input_paths=input_paths, group_id="sess-1"
+        )
+
+    assert response == {"job_id": "job-1"}
+    mock_request.assert_called_once()
+    method, endpoint = mock_request.call_args.args
+    assert (method, endpoint) == ("POST", "api/jobs/external_tool")
+    payload = mock_request.call_args.kwargs["data"]
+    assert json.loads(payload["input_paths"]) == input_paths
+    assert json.loads(payload["config"]) == {"threads": 8}
+    assert payload["group_id"] == "sess-1"
+
+
+@pytest.mark.parametrize("other", [
+    {"local_files": {"reads": "a.fq"}},
+    {"datahub_file_data": {"reads": ["a.fq"]}},
+    {"userdata_file_data": {"reads": [{"path": "a.fq"}]}},
+])
+def test_post_external_tool_job_input_paths_exclusive(mock_client, other):
+    with patch.object(mock_client, '_request') as mock_request:
+        with pytest.raises(ValueError, match="cannot be combined"):
+            mock_client.post_external_tool_job("lib", "tool", input_paths={"reads": "/workspace/a.fq"}, **other)
+    mock_request.assert_not_called()
+
+
+def test_post_external_tool_job_input_paths_must_be_a_mapping(mock_client):
+    for bad in ({}, ["/workspace/a.fq"]):
+        with pytest.raises(ValueError, match="must map"):
+            mock_client.post_external_tool_job("lib", "tool", input_paths=bad)
+
+
+def test_post_external_tool_job_without_input_paths_still_patches(mock_client):
+    with patch.object(mock_client, '_request') as mock_request:
+        mock_request.side_effect = [{"job_id": "job-1"}, {"job_id": "job-1"}]
+
+        mock_client.post_external_tool_job("lib", "tool", datahub_file_data={"reads": ["a.fq"]})
+
+    assert [call.args[:2] for call in mock_request.call_args_list] == [
+        ("POST", "api/jobs/external_tool"),
+        ("PATCH", "api/jobs/job-1"),
+    ]
+    assert "input_paths" not in mock_request.call_args_list[0].kwargs["data"]
 
 
 def test_download_job_result_file(mock_client, tmp_path):
