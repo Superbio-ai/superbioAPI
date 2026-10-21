@@ -601,7 +601,8 @@ class Client:
     def post_external_tool_job(self, external_tool_library_name: str, tool_name: str, config=None, 
                                local_files=None, remote_file_source_data=None, 
                                datahub_file_data=None, datahub_result_file_data=None, open_file_data=None,
-                               userdata_file_data=None, title: str = None, group_id: str = None):
+                               userdata_file_data=None, title: str = None, group_id: str = None,
+                               input_paths=None):
         """
         Submit a new job to the Superbio platform using an external tool. This is to be used in the superbio.ai copilot mode.
 
@@ -609,6 +610,15 @@ class Client:
             external_tool_library_name (str): Name/ID of the external tool library. Currently we support...
             tool_name (str): Name of the specific tool within the library
             config (dict, optional): Job configuration parameters
+            input_paths (dict, optional): Chat sandbox only. Mapping of file keys to file paths
+                as seen in the sandbox; the server resolves them, so no upload happens. A single
+                path may be given as a string. Files only, not folders. Cannot be combined with
+                the other file arguments.
+                Example:
+                {
+                    "reads": ["/workspace/sample_R1.fq.gz", "/mnt/datahub/runs/sample_R2.fq.gz"],
+                    "reference": "/mnt/results/<job_id>/ref.fa"
+                }
             local_files (dict, optional): Mapping of file keys to local file paths
             remote_file_source_data (dict, optional): Remote file source configuration
                 Example for S3:
@@ -663,6 +673,26 @@ class Client:
         if config is None:
             config = {}
 
+        payload = {
+            "library_name_id": external_tool_library_name,
+            "tool_name": tool_name,
+            "partial_job_submit": True,
+            "config": json.dumps(config),
+            "group_id": group_id or self.job_group_id,
+        }
+        if title:
+            payload["title"] = title
+
+        if input_paths is not None:
+            other_files = (local_files, remote_file_source_data, datahub_file_data,
+                           datahub_result_file_data, open_file_data, userdata_file_data)
+            if any(other_files):
+                raise ValueError("input_paths cannot be combined with other file arguments")
+            if not isinstance(input_paths, dict) or not input_paths:
+                raise ValueError("input_paths must map file keys to file paths")
+            payload["input_paths"] = json.dumps(input_paths)
+            return self._request("POST", "api/jobs/external_tool", data=payload)
+
         if local_files is None:
             local_files = {}
 
@@ -670,22 +700,11 @@ class Client:
         formatted_datahub_result_file_data = format_datahub_file_data(datahub_result_file_data)
         formatted_open_file_data = format_open_file_data(open_file_data)
         formatted_userdata_file_data = format_userdata_file_data(userdata_file_data)
-        config = json.dumps(config)
         remote_file_source_data = json.dumps(remote_file_source_data)
         formatted_datahub_file_data = json.dumps(formatted_datahub_file_data)
         formatted_datahub_result_file_data = json.dumps(formatted_datahub_result_file_data)
         formatted_open_file_data = json.dumps(formatted_open_file_data)
         formatted_userdata_file_data = json.dumps(formatted_userdata_file_data)
-
-        payload = {
-            "library_name_id": external_tool_library_name,
-            "tool_name": tool_name,
-            "partial_job_submit": True,
-            "config": config,
-            "group_id": group_id or self.job_group_id,
-        }
-        if title:
-            payload["title"] = title
 
         response = self._request("POST", "api/jobs/external_tool", data=payload)
 
