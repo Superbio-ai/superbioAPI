@@ -4,6 +4,7 @@ from typing import List, Literal, Optional
 import requests
 from superbio.consts import RUNNING_MODE
 from superbio.auth import AuthManager
+from superbio.exceptions import SuperbioAPIError
 from superbio.upload import DEFAULT_CONCURRENCY, DataHubUploader, ProgressCallback, iter_upload_targets, print_progress
 from superbio.utils import create_patch_partial_job_payload, data_validation, job_post_validation, format_datahub_file_data, format_userdata_file_data, format_open_file_data
 
@@ -74,7 +75,10 @@ class Client:
         response = requests.request(method, url, data=data, json=_json, params=params, files=files, headers=headers,
                                     stream=stream)
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            raise SuperbioAPIError(response) from exc
 
         if return_json:
             return response.json()

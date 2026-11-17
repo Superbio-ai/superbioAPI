@@ -1,7 +1,9 @@
 import json
 import pytest
+import requests
 from unittest.mock import patch, MagicMock
 from superbio.client import Client, RUNNING_MODE
+from superbio.exceptions import SuperbioAPIError
 import os
 import pathlib
 from pathlib import Path
@@ -267,6 +269,42 @@ def test_request_method(mock_client):
             stream=False
         )
         assert response == {"test": "data"}
+
+
+def _error_response(status_code, reason, body):
+    response = requests.Response()
+    response.status_code = status_code
+    response.reason = reason
+    response._content = body.encode()
+    return response
+
+
+def test_request_error_carries_the_api_code_and_message(mock_client):
+    body = json.dumps({
+        "message": "Not enough credits: 2 available, 5 required",
+        "code": "insufficient_credits",
+        "required": 5,
+        "available": 2,
+    })
+    with patch('requests.request', return_value=_error_response(402, "Payment Required", body)):
+        with pytest.raises(SuperbioAPIError) as excinfo:
+            mock_client._request("POST", "api/jobs/external_tool")
+
+    error = excinfo.value
+    assert str(error) == "402 Not enough credits: 2 available, 5 required (insufficient_credits)"
+    assert error.status_code == 402
+    assert error.code == "insufficient_credits"
+    assert error.body["required"] == 5
+    assert isinstance(error, requests.HTTPError)
+
+
+def test_request_error_without_a_json_body_falls_back_to_the_reason(mock_client):
+    with patch('requests.request', return_value=_error_response(502, "Bad Gateway", "<html>oops</html>")):
+        with pytest.raises(SuperbioAPIError) as excinfo:
+            mock_client._request("GET", "api/jobs")
+
+    assert str(excinfo.value) == "502 Bad Gateway"
+    assert excinfo.value.code is None
 
 
 def test_list_job_result_files_error(mock_client):
